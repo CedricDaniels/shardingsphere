@@ -37,6 +37,10 @@ import java.util.Collection;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 
+/**
+ * 重要
+ * sql解析器测试用例
+ */
 @RunWith(Parameterized.class)
 @RequiredArgsConstructor
 public final class ShardingParameterizedParsingTest {

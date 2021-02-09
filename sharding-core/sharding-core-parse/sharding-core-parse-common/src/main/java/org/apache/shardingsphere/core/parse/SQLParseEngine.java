@@ -47,9 +47,11 @@ public final class SQLParseEngine {
      * @return SQL statement
      */
     public SQLStatement parse(final String sql, final boolean useCache) {
+        //内部实现钩子方法，植入其他逻辑，主要作用是链路监控
         ParsingHook parsingHook = new SPIParsingHook();
         parsingHook.start(sql);
         try {
+            //解析入口
             SQLStatement result = parse0(sql, useCache);
             parsingHook.finishSuccess(result);
             return result;
@@ -62,12 +64,14 @@ public final class SQLParseEngine {
     }
     
     private SQLStatement parse0(final String sql, final boolean useCache) {
+        //根据是否使用缓存获取解析结果
         if (useCache) {
             Optional<SQLStatement> cachedSQLStatement = cache.getSQLStatement(sql);
             if (cachedSQLStatement.isPresent()) {
                 return cachedSQLStatement.get();
             }
         }
+        //这块是对SQL进行解析，并将解析结果遍历封装在SQLStatement对象中
         SQLStatement result = new SQLParseKernel(ParseRuleRegistry.getInstance(), databaseType, sql).parse();
         if (useCache) {
             cache.put(sql, result);

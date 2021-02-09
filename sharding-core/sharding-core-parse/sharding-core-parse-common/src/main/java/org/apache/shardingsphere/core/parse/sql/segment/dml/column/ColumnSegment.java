@@ -39,15 +39,20 @@ import org.apache.shardingsphere.core.parse.util.SQLUtil;
 @Setter
 @ToString
 public class ColumnSegment implements SQLSegment, PredicateRightValue, OwnerAvailable<TableSegment> {
-    
+
+    //在sql中开始index
     private final int startIndex;
-    
+
+    //结束index
     private final int stopIndex;
-    
+
+    //字段名column
     private final String name;
-    
+
+    //是否有 `，’等, 比如mysql中查询中 select `id`,`name` from xxx
     private final QuoteCharacter quoteCharacter;
-    
+
+    //字段属于哪个表
     private TableSegment owner;
     
     public ColumnSegment(final int startIndex, final int stopIndex, final String name) {

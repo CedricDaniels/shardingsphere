@@ -58,9 +58,12 @@ public final class SQLParseKernel {
      * @return SQL statement
      */
     public SQLStatement parse() {
+        //解析获取抽象语法树AST
         SQLAST ast = parserEngine.parse();
+        //从语法树中获取sql 片段，稍后解释sql片段是什么意思
         Collection<SQLSegment> sqlSegments = extractorEngine.extract(ast);
         Map<ParserRuleContext, Integer> parameterMarkerIndexes = ast.getParameterMarkerIndexes();
+        //将解析获取的语法树遍历填充在SQLStatement对象中返回，供后续路由使用
         return fillerEngine.fill(sqlSegments, parameterMarkerIndexes.size(), ast.getSqlStatementRule());
     }
 }

@@ -55,10 +55,12 @@ public final class SQLStatementFillerEngine {
     @SuppressWarnings("unchecked")
     @SneakyThrows
     public SQLStatement fill(final Collection<SQLSegment> sqlSegments, final int parameterMarkerCount, final SQLStatementRule rule) {
+        //根据语法规则中配置的class name获取实现类，比如有SQLSelectStatement 、SQLinsertStatement等
         SQLStatement result = rule.getSqlStatementClass().newInstance();
         Preconditions.checkArgument(result instanceof AbstractSQLStatement, "%s must extends AbstractSQLStatement", result.getClass().getName());
         ((AbstractSQLStatement) result).setParametersCount(parameterMarkerCount);
         result.getAllSQLSegments().addAll(sqlSegments);
+        //对应的SQLSegment实现了filter，fiter作用是将有关键的SQLSegment放在对应的数据结构中，比如有orderby 或者
         for (SQLSegment each : sqlSegments) {
             Optional<SQLSegmentFiller> filler = parseRuleRegistry.findSQLSegmentFiller(databaseType, each.getClass());
             if (filler.isPresent()) {

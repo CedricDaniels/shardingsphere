@@ -72,8 +72,10 @@ public final class SQLParserFactory {
      * @return SQL parser
      */
     public static SQLParser newInstance(final DatabaseType databaseType, final String sql) {
+        //spi获取所有的SQLParser
         for (SQLParserEntry each : NewInstanceServiceLoader.newServiceInstances(SQLParserEntry.class)) {
             if (DatabaseTypes.getActualDatabaseType(each.getDatabaseType()) == databaseType) {
+                //实例化满足条件的SQLParser
                 return createSQLParser(sql, each);
             }
         }
