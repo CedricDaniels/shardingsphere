@@ -69,9 +69,11 @@ public final class StandardRoutingEngine implements RoutingEngine {
     
     @Override
     public RoutingResult route() {
+        //此处实现检查，不支持多表DML操作
         if (isDMLForModify(sqlStatementContext.getSqlStatement()) && !sqlStatementContext.getTablesContext().isSingleTable()) {
             throw new ShardingException("Cannot support Multiple-Table for '%s'.", sqlStatementContext.getSqlStatement());
         }
+        //我们先分析getDataNodes()，再分析generateRoutingResult()
         return generateRoutingResult(getDataNodes(shardingRule.getTableRule(logicTableName)));
     }
     
@@ -88,18 +90,22 @@ public final class StandardRoutingEngine implements RoutingEngine {
         }
         return result;
     }
-    
+    //到此处，DataNode就生成了，sharding-jdbc内部已经得到了需要执行sql的库和表完整的路由图，接着就是将DataNode这种vo转换成跨模块交互的RoutingResult对象了，请自行阅读generateRoutingResult()方法逻辑
     private Collection<DataNode> getDataNodes(final TableRule tableRule) {
+        //当表和库的分片策略都配置的是HintShardingStrategy自定义分片策略时
         if (shardingRule.isRoutingByHint(tableRule)) {
             return routeByHint(tableRule);
         }
+        //当表和库都不是自定义分片策略时，此时你会发现标准路由里有自定义路由的逻辑，验证了官网的那个图只是逻辑划分，实际情况比较混乱
         if (isRoutingByShardingConditions(tableRule)) {
             return routeByShardingConditions(tableRule);
         }
+        //当是自定义分片策略与其他分片策略混合设置时
         return routeByMixedConditions(tableRule);
     }
     
     private Collection<DataNode> routeByHint(final TableRule tableRule) {
+        //route0()方法我们分析过了，看下getDatabaseShardingValuesFromHint、getTableShardingValuesFromHint两个方法
         return route0(tableRule, getDatabaseShardingValuesFromHint(), getTableShardingValuesFromHint());
     }
     
@@ -124,6 +130,7 @@ public final class StandardRoutingEngine implements RoutingEngine {
     }
     
     private Collection<DataNode> routeByMixedConditions(final TableRule tableRule) {
+        //当ShardingCondition为空时执行routeByMixedConditionsWithHint，否则执行routeByMixedConditionsWithCondition，我们逐个分析
         return shardingConditions.getConditions().isEmpty() ? routeByMixedConditionsWithHint(tableRule) : routeByMixedConditionsWithCondition(tableRule);
     }
     
@@ -138,6 +145,7 @@ public final class StandardRoutingEngine implements RoutingEngine {
     }
     
     private Collection<DataNode> routeByMixedConditionsWithHint(final TableRule tableRule) {
+        //判断逻辑很简单，就是看下配置的分片策略是不是HintShardingStrategy，此处route0()方法我们上面已经分析
         if (shardingRule.getDatabaseShardingStrategy(tableRule) instanceof HintShardingStrategy) {
             return route0(tableRule, getDatabaseShardingValuesFromHint(), Collections.<RouteValue>emptyList());
         }
@@ -161,6 +169,7 @@ public final class StandardRoutingEngine implements RoutingEngine {
     }
     
     private List<RouteValue> getDatabaseShardingValuesFromHint() {
+        //此处可以看出，在使用HintShardingStrategy时，需要配合HintManager动态设置分片逻辑
         return getRouteValues(HintManager.getDatabaseShardingValues(logicTableName));
     }
     
@@ -169,6 +178,7 @@ public final class StandardRoutingEngine implements RoutingEngine {
     }
     
     private List<RouteValue> getRouteValues(final Collection<Comparable<?>> shardingValue) {
+        //最终的目的也是为了生成RouteValue
         return shardingValue.isEmpty() ? Collections.<RouteValue>emptyList() : Collections.<RouteValue>singletonList(new ListRouteValue<>("", logicTableName, shardingValue));
     }
     
@@ -183,10 +193,13 @@ public final class StandardRoutingEngine implements RoutingEngine {
         }
         return result;
     }
-    
+
+    //当分片逻辑为空时，到了这里，注意此时入参databaseShardingValues和tableShardingValues都为空
     private Collection<DataNode> route0(final TableRule tableRule, final List<RouteValue> databaseShardingValues, final List<RouteValue> tableShardingValues) {
+        //此处看下面对routeDataSources方法的分析
         Collection<String> routedDataSources = routeDataSources(tableRule, databaseShardingValues);
         Collection<DataNode> result = new LinkedList<>();
+        //先过滤数据源，然后过滤表
         for (String each : routedDataSources) {
             result.addAll(routeTables(tableRule, each, tableShardingValues));
         }
@@ -194,9 +207,11 @@ public final class StandardRoutingEngine implements RoutingEngine {
     }
     
     private Collection<String> routeDataSources(final TableRule tableRule, final List<RouteValue> databaseShardingValues) {
+        //在标准路由时，分片条件为空，此时返回全部数据源名的集合
         if (databaseShardingValues.isEmpty()) {
             return tableRule.getActualDatasourceNames();
         }
+        //否则通过分片策略，执行分片算法
         Collection<String> result = new LinkedHashSet<>(shardingRule.getDatabaseShardingStrategy(tableRule).doSharding(tableRule.getActualDatasourceNames(), databaseShardingValues));
         Preconditions.checkState(!result.isEmpty(), "no database route info");
         Preconditions.checkState(tableRule.getActualDatasourceNames().containsAll(result), 
@@ -205,12 +220,15 @@ public final class StandardRoutingEngine implements RoutingEngine {
     }
     
     private Collection<DataNode> routeTables(final TableRule tableRule, final String routedDataSource, final List<RouteValue> tableShardingValues) {
+        //找到ds中所有的真实表名
         Collection<String> availableTargetTables = tableRule.getActualTableNames(routedDataSource);
+        //此处先分析三元表达式，在标准分片逻辑中，此处tableShardingValues.isEmpty()为真，返回全部真实表名；否则通过配置的表的分片算法执行分片逻辑
         Collection<String> routedTables = new LinkedHashSet<>(tableShardingValues.isEmpty() ? availableTargetTables
                 : shardingRule.getTableShardingStrategy(tableRule).doSharding(availableTargetTables, tableShardingValues));
         Preconditions.checkState(!routedTables.isEmpty(), "no table route info");
         Collection<DataNode> result = new LinkedList<>();
         for (String each : routedTables) {
+            //此处封装成DataNode，路由完成时，最后会设置到ShardingCondition中，给到后续的改写引擎使用
             result.add(new DataNode(routedDataSource, each));
         }
         return result;

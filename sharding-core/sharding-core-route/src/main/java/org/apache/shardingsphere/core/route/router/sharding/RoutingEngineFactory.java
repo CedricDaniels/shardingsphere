@@ -57,7 +57,7 @@ public final class RoutingEngineFactory {
     
     /**
      * Create new instance of routing engine.
-     * 
+     * 所有类型 RoutingEngine 的创建入口
      * @param shardingRule sharding rule
      * @param metaData meta data of ShardingSphere
      * @param sqlStatementContext SQL statement context
@@ -66,7 +66,9 @@ public final class RoutingEngineFactory {
      */
     public static RoutingEngine newInstance(final ShardingRule shardingRule,
                                             final ShardingSphereMetaData metaData, final SQLStatementContext sqlStatementContext, final ShardingConditions shardingConditions) {
+        //SQLStatement的生成是sql解析引擎职责，我们当前略过，后面会分析解析引擎的逻辑
         SQLStatement sqlStatement = sqlStatementContext.getSqlStatement();
+        // 逻辑表名
         Collection<String> tableNames = sqlStatementContext.getTablesContext().getTableNames();
         if (sqlStatement instanceof TCLStatement) {
             return new DatabaseBroadcastRoutingEngine(shardingRule);
@@ -92,6 +94,7 @@ public final class RoutingEngineFactory {
         if (sqlStatementContext.getSqlStatement() instanceof DMLStatement && shardingConditions.isAlwaysFalse() || tableNames.isEmpty()) {
             return new UnicastRoutingEngine(shardingRule, tableNames);
         }
+        //这里是生成标准路由引擎的入口
         return getShardingRoutingEngine(shardingRule, sqlStatementContext, shardingConditions, tableNames);
     }
     
@@ -120,10 +123,14 @@ public final class RoutingEngineFactory {
     private static RoutingEngine getShardingRoutingEngine(final ShardingRule shardingRule, final SQLStatementContext sqlStatementContext, 
                                                           final ShardingConditions shardingConditions, final Collection<String> tableNames) {
         Collection<String> shardingTableNames = shardingRule.getShardingLogicTableNames(tableNames);
+        //对照着看官方文档上“路由引擎的整体结构”图，当满足单表或者全部是绑定表时，走标准路由引擎
         if (1 == shardingTableNames.size() || shardingRule.isAllBindingTables(shardingTableNames)) {
+            //准路由引擎，此处可以知道入参分别是分片规则、分片逻辑表、SQLStatement上下文、分片条件
+            //注意，由于还没有开始进行分片算法运算，此时的shardingConditions只有用于分片计算的RouteValue，没有分片结果DataNode
             return new StandardRoutingEngine(shardingRule, shardingTableNames.iterator().next(), sqlStatementContext, shardingConditions);
         }
         // TODO config for cartesian set
+        // 混合路由引擎，此处暂不分析
         return new ComplexRoutingEngine(shardingRule, tableNames, sqlStatementContext, shardingConditions);
     }
 }
